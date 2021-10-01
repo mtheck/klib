@@ -216,7 +216,9 @@ function load_meta {
 
         [[ -e $meta_file ]] || error "Cluster meta data file not found"
 
-        data=$(< "$meta_file") || error "Failed loading cluster meta data file"
+        IFS= read -r -d '' data < "$meta_file" || :
+
+        [[ $data ]] || error "Failed loading cluster meta data file"
 
         CLUSTER_DATA[$cluster]=$data
     fi
@@ -653,7 +655,7 @@ if [[ $command == exec ]]; then
                 cat "$job_dir"/err >&2
 
                 if [[ ! $ignore ]]; then
-                    job_rc=$(< "$job_dir"/rc)
+                    read -r job_rc < "$job_dir"/rc
 
                     [[ $job_rc -eq 0 ]] || exit $job_rc
                 fi
