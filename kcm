@@ -44,7 +44,7 @@ Manage configuration of Kubenetes clusters.
 
 Usage:
   $0 get|ls|meta|rm [<options>] [<cluster> ...]
-  $0 exec [<options>] [- <cluster> ... -] <command> [<arg> ...]
+  $0 run [<options>] [- <cluster> ... -] <command> [<arg> ...]
   $0 env <cluster>|-
   $0 complete
 
@@ -57,8 +57,8 @@ Commands:
     Output meta data for configured selected clusters
   rm
     Remove configuration of selected clusters
-  exec
-    Execute command for each selected cluster
+  run
+    Run a command for each selected cluster
   env
     Output sourceable environment for specified cluster (use - to unset)
   complete
@@ -90,9 +90,9 @@ Options:
   --no-stage, -S <LIST:IDENTIFIER>
     List of excluded cluster stage
   --parallel, -j
-    Run parallel jobs with exec
+    Run parallel jobs with run
   --ignore, -i
-    Ignore command error on exec
+    Ignore command error on run
   --force, -f
     Force updating configuration even if cluster is reachable
   --keep, -k
@@ -203,7 +203,7 @@ function save_meta {
 function load_meta {
     local cluster=$1
 
-    coproc_exec load_meta jq --unbuffered -r 'to_entries | length, (map(.key, (.value | tostring)) | map((length | tostring), .))[]'
+    coproc_run load_meta jq --unbuffered -r 'to_entries | length, (map(.key, (.value | tostring)) | map((length | tostring), .))[]'
 
     local data=${CLUSTER_DATA[$cluster]}
 
@@ -284,20 +284,20 @@ function check_cluster {
     kubectl version &>/dev/null
 }
 
-function exec_cluster {
+function run_cluster {
     msg "Cluster: ${CLUSTER[_]}"
 
     run "$@"
 }
 
-function exec_cluster_bg {
+function run_cluster_bg {
     local dir=$1 && shift
 
     set +e
 
     { echo ${CLUSTER[_]} > "$dir"/cluster; } 2>/dev/null
 
-    { exec_cluster "$@" 1> "$dir"/out 2> "$dir"/err; } 2>/dev/null
+    { run_cluster "$@" 1> "$dir"/out 2> "$dir"/err; } 2>/dev/null
 
     { echo $? > "$dir"/rc; } 2>/dev/null
 
@@ -394,6 +394,8 @@ function __kcn {
 
 command=$1
 shift && [[ $command != -* ]] || usage
+
+[[ $command == exec ]] && command=run
 
 providers=()
 parallel=
@@ -498,9 +500,9 @@ mkdir -p "$KCM_ROOT"
 
 ARGS=()
 
-## extract exec args
+## extract run args
 
-if [[ $command == exec ]]; then
+if [[ $command == run ]]; then
     if [[ $1 == - ]]; then
         shift
         for ((n=1; n<=$#; n++)); do
@@ -615,9 +617,9 @@ if [[ $command == meta ]]; then
     exit 0 # meta
 fi
 
-## exec command for clusters
+## run command for clusters
 
-if [[ $command == exec ]]; then
+if [[ $command == run ]]; then
     [[ ${#ARGS} -gt 0 ]] || usage
 
     job_dirs=()
@@ -631,13 +633,13 @@ if [[ $command == exec ]]; then
 
             touch "$job_dir"/run
 
-            exec_job exec_cluster_bg "$job_dir" "${ARGS[@]}"
+            run_job run_cluster_bg "$job_dir" "${ARGS[@]}"
 
             job_dirs+=("$job_dir")
         else
             [[ $ignore ]] && set +e
 
-            exec_cluster "${ARGS[@]}"
+            run_cluster "${ARGS[@]}"
 
             [[ $ignore ]] && set -e
         fi
@@ -650,7 +652,7 @@ if [[ $command == exec ]]; then
 
                 [[ -e "$job_dir"/run ]] && continue
 
-                _debug && debug "Fihished exec job: $(< "$job_dir"/cluster) [$(< "$job_dir"/rc)]"
+                _debug && debug "Fihished running job: $(< "$job_dir"/cluster) [$(< "$job_dir"/rc)]"
 
                 cat "$job_dir"/err >&2
 
@@ -669,13 +671,13 @@ if [[ $command == exec ]]; then
 
             [[ ${#job_dirs[@]} -eq 0 ]] && break
 
-            _trace && trace "Running exec jobs: ${#job_dirs[@]}"
+            _trace && trace "Running jobs: ${#job_dirs[@]}"
 
             sleep 0.1
         done
     fi
 
-    exit 0 # exec
+    exit 0 # run
 fi
 
 ## remove configured clusters
