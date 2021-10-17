@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -e
+
+{
+	kubectl get -A po -A -o json | jq -r '.items[] | .metadata as $meta | .status.podIP | [., (["pod", $meta.namespace, $meta.name] | join("/"))] | join("\t")'
+	kubectl get -A ep -A -o json | jq -r '.items[] | .metadata as $meta | .subsets[].addresses[].ip | [., (["ep", $meta.namespace, $meta.name] | join("/"))] | join("\t")'
+	kubectl get -A svc -A -o json | jq -r '.items[] | .metadata as $meta | select(.spec.clusterIP and .spec.clusterIP != "None") | .spec.clusterIP | [., (["svc", $meta.namespace, $meta.name] | join("/"))] | join("\t")'
+} | \
+	sort -n

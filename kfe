@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+ES_DEFAULT_PORT=9200
+ES_SERVICE_NAMESPACE=fleet-system
+ES_SERVICE_NAME=fleet-elasticsearch-es-http
+ES_SECRET_NAME=fleet-elasticsearch-es-elastic-user
+ES_SECRET_KEY=elastic
+
+usage() {
+    cat <<END
+Send HTTP query to Elasticsearch (with curl) through a kube port forward inside a Fleet cluster.
+
+Usage:
+  $0 [options] <path query> [<curl arg> ...]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --port, -p [<INTEGER>:]<INTEGER>
+    Elasticsearch HTTP API cluster port number optionnaly preceded by local port forward ($ES_DEFAULT_PORT)
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+port=$ES_DEFAULT_PORT
+path=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--port | -p)
+    port=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+path=$1
+shift || usage
+
+args=()
+[[ $context ]] && args+=(--context "$context")
+args+=(-n fleet-system)
+
+pass_b64=$(kubectl "${args[@]}" get secret "$ES_SECRET_NAME" --template={{.data."$ES_SECRET_KEY"}}) || error "Failed getting password from Elasticsearch secret"
+
+pass=$(base64 -d <<< "$pass_b64") || error "Failed base64 decode password from Elasticsearch secret"
+
+kfh "${args[@]}" svc/$ES_SERVICE_NAME "$port" "$path" -u "$ES_SECRET_KEY:$pass" "$@"

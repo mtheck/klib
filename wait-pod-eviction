@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+set -e
+
+KUBECTL=${KUBECTL:-kubectl}
+
+function usage {
+    cat <<END
+Wait until all current deleted pods are evicted from the cluster.
+On timeout or interruption error is returned and deleting pods are displayed.
+
+Usage:
+  $0 [options]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of pods (default is all)
+  --selector, -l <STRING>
+    Label selector for pods (repeatable)
+  --timeout, -t <INTEGER>
+    Maximum time in seconds to wait before failing
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+function error {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+context=
+namespace=
+selectors=()
+timeout=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--selector | -l)
+    selectors+=("$2")
+    shift 2 || usage
+    ;;
+--timeout | -t)
+    timeout=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+[[ $# -eq 0 ]] || error "Unexpected argument: $1"
+
+context_arg=
+if [[ $context ]]; then
+    context_arg=--context=$context
+fi
+
+namespace_arg=--all-namespaces
+if [[ $namespace ]]; then
+    namespace_arg=--namespace=$namespace
+fi
+
+selectors_arg=()
+for selector in  "${selectors[@]}"; do
+    selectors_arg+=("--selector=$selector")
+done
+
+base_args=("$KUBECTL" $context_arg get $namespace_arg "${selectors_arg[@]}")
+
+waiting=()
+
+terminate() { for w in "${waiting[@]}"; do echo "$w"; done; exit 3; }
+
+trap 'echo; terminate' INT
+
+[[ $timeout ]] && time_limit=$(($(date +%s) + $timeout))
+
+while :; do
+    waiting_pods=()
+
+    while read -r pod_namespace pod_name pod_timestamp; do
+        waiting_pods+=("$pod_namespace $pod_name $pod_timestamp")
+    done < <(
+        "${base_args[@]}" pods --template '{{range .items}}{{if .metadata.deletionTimestamp}}{{.metadata.namespace}} {{.metadata.name}} {{.metadata.deletionTimestamp}}{{"\n"}}{{end}}{{end}}'
+    )
+
+    waiting=("${waiting_pods[@]}")
+
+    [[ $waiting ]] || break
+
+    [[ $timeout ]] && [[ $(date +%s) -ge $time_limit ]] && terminate
+
+    sleep 1
+done

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+function usage {
+    cat <<END
+Clean specified context from kubectl config.
+
+Usage:
+  $0 [options] <context>
+
+Options:
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+context=$1
+shift || usage
+
+[[ $# -eq 0 ]] || error "Unexpected argument: $1"
+
+if [[ $(kubectl config current-context 2> /dev/null) == $context ]]; then
+    kubectl config unset current-context
+fi
+
+for type in contexts clusters users; do
+    kubectl config unset "$type.$context"
+done

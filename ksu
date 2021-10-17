@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+KSU_IMAGE=${KSU_IMAGE:-debian}
+
+usage() {
+    cat <<END
+Run a priviledged pod on a Kubernetes node.
+
+Usage:
+  $0 [options] <node> <mount>
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace for the pod
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+namespace=
+node=
+mount=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+node=$1
+shift || usage
+
+valid_identifier "$node" || error "Invalid node name"
+
+mount=$1
+shift || usage
+
+args=()
+[[ $context ]] && args+=(--context "$context")
+[[ $namespace ]] && args+=(--namespace "$namespace")
+
+pod_overrides=$(cat <<END
+{"spec":{
+  "nodeName": "$node",
+  "hostPID": true,
+  "hostNetwork": true,
+  "tolerations": [{"operator": "Exists"}],
+  "containers":[{
+    "name":"debug",
+    "image":"$KSU_IMAGE",
+    "workingDir": "/ksu",
+    "command":["bash"],
+    "securityContext": {"privileged": true},
+    "stdin": true,
+    "tty": true,
+    "volumeMounts":[
+      {
+        "name": "mount",
+        "mountPath": "/ksu"
+      }
+    ]
+  }],
+  "volumes":[
+    {
+      "name": "mount",
+      "hostPath":{
+        "path": $(jquote "$path")
+      }
+    }
+  ]
+}}
+END
+)
+
+instance_name=$(cat /proc/sys/kernel/random/uuid)
+pod_name=ksu-$instance_name
+
+kubectl "${args[@]}" run $pod_name -it --quiet --restart=Never --rm --image "$KSU_IMAGE" \
+  --labels kind=debug,name=ksu,instance=$instance_name,user="$USER" \
+  --overrides "$pod_overrides"

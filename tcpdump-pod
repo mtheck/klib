@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+usage() {
+    cat <<END
+Run a TCP dump on a pod.
+
+Usage:
+  $0 [options] [<target pod>]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of target pod
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+namespace=
+pod=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+[[ $# -gt 0 ]] && pod=$1
+
+kubectl_args=()
+[[ $context ]] && kubectl_args+=(--context "$context")
+[[ $namespace ]] && kubectl_args+=(--namespace "$namespace")
+
+exec_kubectl() { kubectl "${kubectl_args[@]}" "$@"; }
+
+if [[ ! $pod ]]; then
+    pod=$(exec_kubectl get pod -o name | xargs -r basename -a | fzf --tac) || error "No pod selected"
+else
+    [[ $(exec_kubectl get pod "$pod" -o name --ignore-not-found) ]] || error "Pod not found: $pod"
+fi
+
+[[ $namespace ]] || namespace=$(exec_kubectl get pod "$pod" --template {{.metadata.namespace}})
+
+node=$(exec_kubectl get pod "$pod" --template {{.spec.nodeName}})
+
+snooper_pod="tcpdump-$RANDOM"
+
+snooper_pod_overrides='{"spec":{
+  "nodeName": "'$node'",
+  "hostPID": true,
+  "hostNetwork": true,
+  "tolerations": [{"operator": "Exists"}],
+  "containers":[{
+    "name": "snooper",
+    "image": "debian",
+    "command":["bash", "-c", "apt-get update && apt-get install iproute2 tcpdump docker.io -yq --no-install-recommends && touch /ready && sleep 3600"],
+    "securityContext": {"privileged": true},
+    "volumeMounts":[{
+      "name": "dockersocket",
+      "mountPath": "/var/run/docker.sock"
+    }]
+  }],
+  "volumes":[{
+      "name": "dockersocket",
+      "hostPath":{
+        "path": "/var/run/docker.sock"
+      }
+    }]
+}}'
+
+msg "Creating snooper pod" @green@ $snooper_pod "on target pod node" @green@ $node
+
+exec_kubectl run "$snooper_pod" --image debian --restart=Never \
+    --labels "kind=debug,owner=$USER,pod=$pod" \
+    --overrides "$snooper_pod_overrides"
+
+tmp_file; dump_script=$TMP_FILE
+
+cat <<'END' > "$dump_script"
+#!/bin/bash
+
+set -e
+
+namespace=$1
+pod=$2
+
+echo "Waiting for snooper container to be ready..."
+
+while [ ! -f /ready ]; do sleep 1; done
+
+container=$(docker ps --filter label=io.kubernetes.pod.namespace=$namespace --filter label=io.kubernetes.pod.name=$pod -q | head -1)
+pid=$(docker inspect --format {{.State.Pid}} $container)
+
+container_link_idx=$(nsenter -t $pid -n ip link show type veth | grep -Eo 'eth.@if[^:]+' | sed 's/.*@if//')
+container_link=$(ip link | grep -Eo "^${container_link_idx}: [^@]+" | sed -E 's/.+: //')
+
+echo "Starting the dump (press ^C to stop it)..."
+
+tcpdump -i $container_link -w dump.pcap
+
+exit 0
+END
+
+msg "Waiting for the pod to start..."
+sleep 10
+
+msg "Copying dumping script"
+exec_kubectl cp "$dump_script" $snooper_pod:/dump.bash
+
+msg "Executing dumping script"
+kubectl exec -it $snooper_pod -- bash dump.bash $namespace $pod
+
+msg "Retrieving dump"
+kubectl cp $snooper_pod:/dump.pcap ./$pod.pcap
+
+msg "Deleting snooper pod"
+kubectl delete pod $snooper_pod

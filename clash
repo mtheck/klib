@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+kubectl delete --all-namespaces pods -l component=shell,name=kash,kash/user=max

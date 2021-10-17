@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+usage() {
+    cat <<END
+Fuzzy find the name of a Kubenetes resource(s) and execute a command with it.
+
+All instances of '{}' are replaced by the resource name, or if absent, appended at the end.
+
+Usage:
+  $0 [options] <resource type> <command> [<arg> ...]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of target resource
+  --type, -t
+    Use resource type name
+  --table, -T
+    Use table view for selection
+  --query, -q
+    Initial fuzzy query
+  --exact, -e
+    Exact match query
+  --single, -s
+    Auto select on single match
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+namespace=
+type=
+table=
+query=
+exact=
+single=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--type | -t)
+    type=type
+    shift
+    ;;
+--table | -T)
+    table=table
+    shift
+    ;;
+--query | -q)
+    query=$2
+    shift 2 || usage
+    ;;
+--exact | -e)
+    exact=exact
+    shift
+    ;;
+--single | -s)
+    single=single
+    shift
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+resource=$1
+shift || usage
+
+[[ $# -gt 0 ]] || usage
+
+require_command fzf
+
+kube_args=(get "$resource")
+[[ $context ]] && kube_args+=(--context "$context")
+[[ $namespace ]] && kube_args+=(--namespace "$namespace")
+[[ $type ]] && kube_args+=(--show-kind)
+[[ $table ]] || kube_args+=(-o name)
+
+output=$(kubectl "${kube_args[@]}")
+
+if [[ ! $table && ! $type ]]; then
+    output=$(<<< "$output" xargs basename -a)
+fi
+
+fz_args=(--tac -0)
+[[ $query ]] && fz_args+=(-q "$query")
+[[ $exact ]] && fz_args+=(-e)
+[[ $single ]] && fz_args+=(-1)
+
+names=($(<<< "$output" fzf "${fz_args[@]}" | awk '{print $1}'))
+
+[[ ${#names} -eq 0 ]] && exit
+
+[[ $type ]] || names=($(basename -a "${names[@]}"))
+
+for name in "${names[@]}"; do
+    args=()
+    found=
+
+    for arg in "$@"; do
+        if [[ $arg == *{}* ]]; then
+            arg=${arg//\{\}/$name}
+            found=found
+        fi
+        args+=("$arg")
+    done
+    [[ $found ]] || args+=($name)
+
+    run "${args[@]}"
+done

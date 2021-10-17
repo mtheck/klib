@@ -1,0 +1,213 @@
+#!/usr/bin/env perl
+
+use strict;
+
+use Getopt::Long qw(:config gnu_getopt);
+
+use constant DEFAULT_SERVER_PORTS => (8001, 9001);
+
+use constant EXCLUDED_NODE => {
+    type => [
+        'nodes',
+    ],
+};
+
+use constant EXCLUDED_NAMESPACE => {
+    type => [
+        'namespaces',
+    ],
+};
+
+use constant EXCLUDED_SYSTEM => {
+    type => [
+        'events',
+        'events.events.k8s.io',
+        'componentstatuses',
+    ],
+    name => [
+    ],
+    instance => [
+        qr(^default:(services|endpoints)/kubernetes\z),
+    ],
+};
+
+use constant EXCLUDED_DEFAULT => {
+    type => [
+        'apiservices.apiregistration.k8s.io',
+        'customresourcedefinitions.apiextensions.k8s.io',
+    ],
+    name => [
+        'serviceaccounts/default',
+        'storageclasses.storage.k8s.io/hostpath',
+        qr(/kube-proxy\b),
+        qr(/kube-dns\b),
+        qr(^secrets/default-token-),
+    ],
+    instance => [
+    ],
+};
+
+sub usage {
+    print <<END;
+List Kubernetes cluster resources.
+
+Usage:
+  $0 [options] <api server url>
+
+Options:
+  --all, -a
+    List all system resources
+  --namespaces, -n
+    List namespaces
+  --nodes, -d
+    List nodes
+  --uid, -u
+    Output resource UID
+  --json, -j
+    Output as JSON data
+  --help, -h
+    Display this help
+END
+    exit 2;
+}
+
+sub error {
+    print STDERR "Error: ", @_, "\n";
+    exit 1;
+}
+
+sub quote { local $_ = shift; s/'/'\\''/g; "'$_'" }
+
+my $server_url;
+
+sub fetch {
+    my @args = (qw(curl -sS -kL -g --fail), quote(join('/', $server_url, @{shift()})));
+
+    push @args, '|', qw(jq -r), quote(shift) if @_;
+
+    my @output = map { chomp; $_ } qx(@args);
+
+    error("Command failed") if $?;
+
+    return @output if wantarray;
+    return $output[0];
+}
+
+my $ls_all;
+my $ls_ns;
+my $ls_node;
+my $ls_uid;
+my $out_json;
+
+GetOptions(
+    "help|h" => \&usage,
+    "all|a" => \$ls_all,
+    "namespaces|n" => \$ls_ns,
+    "nodes|d" => \$ls_node,
+    "uid|u" => \$ls_uid,
+    "json|j" => \$out_json,
+)
+or error("Invalid argument");
+
+require JSON if $out_json;
+
+if (@ARGV) {
+    $server_url = shift;
+}
+else {
+    foreach (DEFAULT_SERVER_PORTS) {
+        system('nc', '-z', '-w', 1, 'localhost', $_) and next;
+        $server_url = "localhost:$_";
+        last;
+    }
+
+    error("Default local API server unreachable") unless defined($server_url);
+}
+
+error("Unexpected argument: @ARGV") if @ARGV;
+
+error("Failed reaching API server") unless fetch(['version'], '.major') eq '1';
+
+my @filters;
+
+push @filters, EXCLUDED_SYSTEM, EXCLUDED_DEFAULT unless $ls_all;
+push @filters, EXCLUDED_NAMESPACE unless $ls_ns;
+push @filters, EXCLUDED_NODE unless $ls_node;
+
+sub excluded {
+    my ($type, $name) = @_;
+
+    foreach (@filters) {
+        foreach (@{$_->{$type}}) {
+            if (ref eq 'Regexp') {
+                return 1 if $name =~ $_;
+            }
+            else {
+                return 1 if $name eq $_;
+            }
+        }
+    }
+
+    return 0;
+}
+
+my @entries;
+my %index;
+
+foreach my $group ('', fetch(['apis'], '.groups[].name')) {
+    my $api_path = length($group) ? ['apis', $group] : ['api'];
+    my $versions_expr = length($group) ? '.versions[].version' : '.versions[]';
+    my $preferred_version_expr = length($group) ? '.preferredVersion.version // empty' : '.preferredVersion // empty';
+
+    my @api_versions = fetch($api_path, $versions_expr);
+    my $preferred_version = fetch($api_path, $preferred_version_expr);
+
+    if (length($preferred_version)) {
+        @api_versions = grep($_ ne $preferred_version, @api_versions);
+        unshift @api_versions, $preferred_version;
+    }
+
+    foreach my $version (@api_versions) {
+        my $version_path = [@$api_path, $version];
+        my @api_resources = fetch($version_path, '.resources[] | select(.verbs[] | select(. == "list")) | .name');
+
+        foreach my $resource (@api_resources) {
+            my $type = length($group) ? $resource . '.' . $group : $resource;
+
+            next if excluded(type => $type);
+
+            my @resource_instances = fetch([@$version_path, $resource], '.items[].metadata | .namespace + ";" + .name + ";" + .uid');
+
+            foreach (@resource_instances) {
+                my ($namespace, $name, $uid) = split /;/;
+
+                next if $index{$uid};
+
+                my $ref_name = "$type/$name";
+                my $ref_instance = "$namespace:$name";
+
+                next if excluded(name => $ref_name);
+                next if excluded(instance => $ref_instance);
+
+                $index{$uid} = 1;
+
+                my %entry = (type => $type, namespace => $namespace, name => $name);
+
+                $entry{uid} = $uid if $ls_uid;
+
+                push @entries, \%entry;
+            }
+        }
+    }
+}
+
+if ($out_json) {
+    print JSON::to_json(\@entries), "\n";
+}
+else {
+    foreach (@entries) {
+        print "$_->{namespace}:$_->{type}/$_->{name}";
+        print "#$_->{uid}" if exists($_->{uid});
+        print "\n";
+    }
+}

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+usage() {
+    cat <<END
+HTTP query (with curl) through a kube port forward.
+
+Usage:
+  $0 [options] <target pod> <port mapping> <path query> [<curl arg> ...]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of target pod
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+namespace=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+pod=$1
+shift || usage
+
+port=$1
+shift || usage
+
+path=$1
+shift || usage
+
+args=()
+[[ $context ]] && args+=(--context "$context")
+[[ $namespace ]] && args+=(--namespace "$namespace")
+
+export KFH_PATH=$path
+
+kfc "${args[@]}" "$pod" "$port" bash -c 'curl -s http://"$KFC_LOCAL_ADDRESS":"$KFC_LOCAL_PORT"/"${KFH_PATH#/}" "$@"' - "$@"

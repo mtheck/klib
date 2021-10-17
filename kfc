@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+DEFAULT_ADDRESS=127.0.0.1
+
+usage() {
+    cat <<END
+Execute a command with a kube port forward.
+
+Usage:
+  $0 [options] <target pod> <port mapping> <command> [<arg> ...]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of target pod
+  --address, -a <NETADDR>
+    Listen address to expose port ($DEFAULT_ADDRESS)
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+context=
+namespace=
+address=$DEFAULT_ADDRESS
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--address | -a)
+    address=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+pod=$1
+shift || usage
+
+port=$1
+shift || usage
+
+args=()
+[[ $context ]] && args+=(--context "$context")
+[[ $namespace ]] && args+=(--namespace "$namespace")
+
+remote_port=${port##*:}
+local_port=${port%%:*}
+
+[[ $local_port ]] || local_port=$remote_port
+
+valid_int "$remote_port" || error "Invalid number for remote port argument"
+valid_int "$local_port" || error "Invalid number for local port argument"
+
+exec_job kubectl "${args[@]}" port-forward --address "$address" "$pod" "$local_port:$remote_port" >/dev/null
+
+until nc -z "$address" "$local_port"; do sleep .1; done
+
+export KFC_REMOTE_POD=$pod
+export KFC_REMOTE_PORT=$remote_port
+export KFC_LOCAL_PORT=$local_port
+export KFC_LOCAL_ADDRESS=$address
+
+run "$@"

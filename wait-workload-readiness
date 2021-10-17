@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+
+set -e
+
+KUBECTL=${KUBECTL:-kubectl}
+
+function usage {
+    cat <<END
+Wait until workloads in the cluster are ready.
+On timeout or interruption error is returned and unready workloads are displayed.
+
+Usage:
+  $0 [options]
+
+Options:
+  --context, -c <STRING>
+    Name of the Kubernetes context
+  --namespace, -n <IDENTIFIER>
+    Namespace of workload (default is all)
+  --selector, -l <STRING>
+    Label selector for workload (repeatable)
+  --timeout, -t <INTEGER>
+    Maximum time in seconds to wait before failing
+  --help, -h
+    Display this help
+END
+    exit 2
+}
+
+function error {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+context=
+namespace=
+selectors=()
+timeout=
+
+while [[ $# -gt 0 ]]; do
+case $1 in
+--context | -c)
+    context=$2
+    shift 2 || usage
+    ;;
+--namespace | -n)
+    namespace=$2
+    shift 2 || usage
+    ;;
+--selector | -l)
+    selectors+=("$2")
+    shift 2 || usage
+    ;;
+--timeout | -t)
+    timeout=$2
+    shift 2 || usage
+    ;;
+--help | -h)
+    usage
+    ;;
+--)
+    shift
+    break
+    ;;
+-*)
+    error "Unknown option: $1"
+    ;;
+*)
+    break
+    ;;
+esac
+done
+
+[[ $# -eq 0 ]] || error "Unexpected argument: $1"
+
+context_arg=
+if [[ $context ]]; then
+    context_arg=--context=$context
+fi
+
+namespace_arg=--all-namespaces
+if [[ $namespace ]]; then
+    namespace_arg=--namespace=$namespace
+fi
+
+selectors_arg=()
+for selector in  "${selectors[@]}"; do
+    selectors_arg+=("--selector=$selector")
+done
+
+base_args=("$KUBECTL" $context_arg get $namespace_arg "${selectors_arg[@]}")
+
+waiting=()
+
+terminate() { for w in "${waiting[@]}"; do echo "$w"; done; exit 3; }
+
+trap 'echo; terminate' INT
+
+[[ $timeout ]] && time_limit=$(($(date +%s) + $timeout))
+
+# check controllers wanted replicas
+while :; do
+    waiting_resources=()
+
+    while read -r resource_kind resource_namespace resource_name resource_wanted_replicas resource_ready_replicas; do
+        if [[ $resource_ready_replicas -ne $resource_wanted_replicas ]]; then
+            waiting_resources+=("$resource_namespace ${resource_kind,,}/$resource_name $resource_ready_replicas/$resource_wanted_replicas")
+        fi
+    done < <(
+        "${base_args[@]}" ds,sts,deploy,rc,rs --template '{{range .items}}{{.kind}} {{.metadata.namespace}} {{.metadata.name}} {{or .spec.replicas .status.desiredNumberScheduled 0}} {{or .status.readyReplicas .status.numberReady 0}}{{"\n"}}{{end}}'
+    )
+
+    waiting=("${waiting_resources[@]}")
+
+    [[ $waiting ]] || break
+
+    [[ $timeout ]] && [[ $(date +%s) -ge $time_limit ]] && terminate
+
+    sleep 1
+done
+
+# ensure pods ready
+while :; do
+    waiting_pods=()
+
+    while read -r pod_namespace pod_name pod_ready pod_reason; do
+        if [[ $pod_ready != True && $pod_reason != PodCompleted ]]; then
+            waiting_pods+=("$pod_namespace pod/$pod_name $pod_reason")
+        fi
+    done < <(
+        "${base_args[@]}" pod -o json | jq -r '.items[] | select((.metadata.ownerReferences[]? | select(.controller) | .kind == "Job") // false | not) | .metadata.namespace + " " + .metadata.name + " " + ((.status.conditions[]? | select(.type == "Ready")) // {} | (.status // "Unknown") + " " + (.reason // "None"))'
+    )
+
+    waiting=("${waiting_pods[@]}")
+
+    [[ $waiting ]] || break
+
+    [[ $timeout ]] && [[ $(date +%s) -ge $time_limit ]] && terminate
+
+    sleep 1
+done

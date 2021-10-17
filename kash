@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -e
+
+. functions
+
+KASH_IMAGE=${KASH_IMAGE:-giantswarm/tiny-tools}
+
+namespace=$1
+
+shift || error "Missing namespace argument"
+
+instance_name=$(cat /proc/sys/kernel/random/uuid)
+pod_name=kash-${instance_name}
+
+kubectl run -it --quiet $pod_name $KASH_OPTIONS --image "$KASH_IMAGE" --restart=Never --rm -l kind=debug,name=kash,instance=$instance_name,user="$USER" -n "$namespace" -- "$@"
