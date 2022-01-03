@@ -90,7 +90,7 @@ Options:
   --no-stage, -S <LIST:IDENTIFIER>
     List of excluded cluster stage
   --parallel, -j
-    Run parallel jobs with run
+    Use parallel jobs with run
   --ignore, -i
     Ignore command error on run
   --force, -f
@@ -673,7 +673,7 @@ if [[ $command == run ]]; then
 
             _trace && trace "Running jobs: ${#job_dirs[@]}"
 
-            sleep 0.1
+            sleep .1
         done
     fi
 

@@ -74,28 +74,24 @@ pod_overrides=$(cat <<END
   "hostNetwork": true,
   "tolerations": [{"operator": "Exists"}],
   "containers":[{
-    "name":"debug",
-    "image":"$KSU_IMAGE",
+    "name": "debug",
+    "image": $(jquote "$KSU_IMAGE"),
     "workingDir": "/ksu",
-    "command":["bash"],
+    "command": ["bash"],
     "securityContext": {"privileged": true},
     "stdin": true,
     "tty": true,
-    "volumeMounts":[
-      {
+    "volumeMounts": [{
         "name": "mount",
         "mountPath": "/ksu"
-      }
-    ]
+    }]
   }],
-  "volumes":[
-    {
+  "volumes":[{
       "name": "mount",
       "hostPath":{
         "path": $(jquote "$path")
       }
-    }
-  ]
+  }]
 }}
 END
 )
