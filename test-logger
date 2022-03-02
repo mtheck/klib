@@ -55,11 +55,11 @@ annotations=()
 while [[ $# -gt 0 ]]; do
 case $1 in
 --labels | -l)
-    array_push labels "$2"
+    push labels "$2"
     shift 2 || usage
     ;;
 --annotations | -a)
-    array_push annotations "$2"
+    push annotations "$2"
     shift 2 || usage
     ;;
 --help | -h)
@@ -85,8 +85,8 @@ CMD[start]=_; __start() {
     [[ $namespace ]] && error "Test logger exists: $namespace/${ENTRY[name]}"
 
     kubectl_entry run test-logger-${ENTRY[name]} --quiet --image bash "$@" \
-        --labels=$(list_join , "${labels[@]}" "$SELECTOR=${ENTRY[name]}") \
-        --annotations=$(list_join , "${annotations[@]}") \
+        --labels=$(concat , "${labels[@]}" "$SELECTOR=${ENTRY[name]}") \
+        --annotations=$(concat , "${annotations[@]}") \
         -- bash -c 'tail -q -F test.log 2> /dev/null' >/dev/null
 }
 
@@ -149,7 +149,7 @@ else
             [[ $found ]] || error "No test logger matching: $selector"
         done
 
-        filter() { [[ ${selected[$1]} ]]; }; array_filter entries +@ filter
+        _filter() { [[ ${selected[$1]} ]]; }; filter:: entries +@ _filter
     fi
 fi
 

@@ -6,7 +6,7 @@ set -e
 
 usage() {
     cat <<END
-Fuzzy find the name of a Kubenetes resource(s) and execute a command with it.
+Fuzzy find (fzf) the name of a Kubenetes resource(s) and execute a command with it.
 
 All instances of '{}' are replaced by the resource name, or if absent, appended at the end.
 

@@ -16,6 +16,8 @@ Options:
     Name of the Kubernetes context
   --namespace, -n <IDENTIFIER>
     Namespace of target pod
+  --proxy, -p
+    Pass current HTTP proxy environment
   --help, -h
     Display this help
 END
@@ -25,6 +27,7 @@ END
 context=
 namespace=
 pod=
+proxy=
 
 while [[ $# -gt 0 ]]; do
 case $1 in
@@ -35,6 +38,10 @@ case $1 in
 --namespace | -n)
     namespace=$2
     shift 2 || usage
+    ;;
+--proxy | -p)
+    proxy=proxy
+    shift
     ;;
 --help | -h)
     usage
@@ -72,6 +79,15 @@ node=$(exec_kubectl get pod "$pod" --template {{.spec.nodeName}})
 
 snooper_pod="tcpdump-$RANDOM"
 
+snooper_pod_env='[]'
+if [[ $proxy ]]; then
+    snooper_pod_env='[
+        {"name": "http_proxy", "value": "'"$http_proxy"'"},
+        {"name": "https_proxy", "value": "'"$https_proxy"'"},
+        {"name": "no_proxy", "value": "'"$no_proxy"'"}
+    ]'
+fi
+
 snooper_pod_overrides='{"spec":{
   "nodeName": "'$node'",
   "hostPID": true,
@@ -81,6 +97,7 @@ snooper_pod_overrides='{"spec":{
     "name": "snooper",
     "image": "debian",
     "command":["bash", "-c", "apt-get update && apt-get install iproute2 tcpdump docker.io -yq --no-install-recommends && touch /ready && sleep 3600"],
+    "env": '"$snooper_pod_env",'
     "securityContext": {"privileged": true},
     "volumeMounts":[{
       "name": "dockersocket",

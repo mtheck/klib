@@ -15,7 +15,7 @@ Options:
   --context, -c <STRING>
     Name of the Kubernetes context
   --namespace, -n <IDENTIFIER>
-    Namespace of target pod
+    Namespace of target pod resource
   --help, -h
     Display this help
 END
@@ -59,6 +59,8 @@ shift || usage
 
 path=$1
 shift || usage
+
+[[ $port == *:* ]] || port=0:$port
 
 args=()
 [[ $context ]] && args+=(--context "$context")

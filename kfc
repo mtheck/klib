@@ -8,7 +8,14 @@ DEFAULT_ADDRESS=127.0.0.1
 
 usage() {
     cat <<END
-Execute a command with a kube port forward.
+Execute a command with a kube port forward (use local port 0 for ephemeral).
+
+Following environment variables are available for the executed command:
+
+  KFC_REMOTE_TARGET (target pod)
+  KFC_REMOTE_PORT (remote target pod port number)
+  KFC_LOCAL_PORT (local listening port number)
+  KFC_LOCAL_ADDRESS (local bind address)
 
 Usage:
   $0 [options] <target pod> <port mapping> <command> [<arg> ...]
@@ -17,7 +24,7 @@ Options:
   --context, -c <STRING>
     Name of the Kubernetes context
   --namespace, -n <IDENTIFIER>
-    Namespace of target pod
+    Namespace of target pod resource
   --address, -a <NETADDR>
     Listen address to expose port ($DEFAULT_ADDRESS)
   --help, -h
@@ -73,16 +80,18 @@ args=()
 remote_port=${port##*:}
 local_port=${port%%:*}
 
+[[ $local_port && $local_port -eq 0 ]] && ephemeral_port && local_port=$EPHEMERAL_PORT
+
 [[ $local_port ]] || local_port=$remote_port
 
-valid_int "$remote_port" || error "Invalid number for remote port argument"
-valid_int "$local_port" || error "Invalid number for local port argument"
+valid_uint "$remote_port" || error "Invalid number for remote port argument"
+valid_uint "$local_port" || error "Invalid number for local port argument"
 
-exec_job kubectl "${args[@]}" port-forward --address "$address" "$pod" "$local_port:$remote_port" >/dev/null
+job:run - kubectl "${args[@]}" port-forward --address "$address" "$pod" "$local_port:$remote_port" >/dev/null
 
 until nc -z "$address" "$local_port"; do sleep .1; done
 
-export KFC_REMOTE_POD=$pod
+export KFC_REMOTE_TARGET=$pod
 export KFC_REMOTE_PORT=$remote_port
 export KFC_LOCAL_PORT=$local_port
 export KFC_LOCAL_ADDRESS=$address

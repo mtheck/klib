@@ -312,7 +312,7 @@ function run_cluster {
     run "$@"
 }
 
-function run_cluster_bg {
+function run_cluster_job {
     local dir=$1 && shift
 
     set +e
@@ -578,8 +578,8 @@ if [[ $command == env ]]; then
         load_env
 
         for var in "${!KCM_ENV[@]}"; do
-            quote: val "${KCM_ENV[$var]}"
-            echo export "$var=$val"
+            val=${KCM_ENV[$var]}
+            echo export "$var=${val@Q}"
         done
     fi
 
@@ -641,15 +641,17 @@ if [[ $command == run ]]; then
 
             touch "$job_dir"/run
 
-            run_job run_cluster_bg "$job_dir" "${ARGS[@]}"
+            job:run - run_cluster_job "$job_dir" "${ARGS[@]}"
 
             job_dirs+=("$job_dir")
         else
-            [[ $ignore ]] && set +e
+            err=
 
-            run_cluster "${ARGS[@]}"
+            run_cluster "${ARGS[@]}" || err=$?
 
-            [[ $ignore ]] && set -e
+            if [[ $err && ! $ignore ]]; then
+                exit $err
+            fi
         fi
     done
 

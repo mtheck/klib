@@ -2,6 +2,8 @@
 
 set -e
 
+. functions
+
 KUBECTL=${KUBECTL:-kubectl}
 
 function usage {
@@ -25,11 +27,6 @@ Options:
     Display this help
 END
     exit 2
-}
-
-function error {
-    echo "Error: $*" >&2
-    exit 1
 }
 
 context=
@@ -92,9 +89,9 @@ base_args=("$KUBECTL" $context_arg get $namespace_arg "${selectors_arg[@]}")
 
 waiting=()
 
-terminate() { for w in "${waiting[@]}"; do echo "$w"; done; exit 3; }
+terminate() { echo; for w in "${waiting[@]}"; do echo "$w"; done; exit 3; }
 
-trap 'echo; terminate' INT
+trap terminate INT
 
 [[ $timeout ]] && time_limit=$(($(date +%s) + $timeout))
 
