@@ -5,7 +5,7 @@ set -e
 . functions
 
 function usage {
-    cat <<END
+	cat <<END
 Clean specified context from kubectl config.
 
 Usage:
@@ -15,24 +15,24 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 while [[ $# -gt 0 ]]; do
 case $1 in
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
@@ -42,9 +42,9 @@ shift || usage
 [[ $# -eq 0 ]] || error "Unexpected argument: $1"
 
 if [[ $(kubectl config current-context 2> /dev/null) == $context ]]; then
-    kubectl config unset current-context
+	kubectl config unset current-context
 fi
 
 for type in contexts clusters users; do
-    kubectl config unset "$type.$context"
+	kubectl config unset "$type.$context"
 done

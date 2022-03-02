@@ -5,7 +5,7 @@ set -e
 . functions
 
 function usage {
-    cat <<END
+	cat <<END
 List pods with their creation time with most recent first.
 
 Usage:
@@ -23,7 +23,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -34,48 +34,48 @@ period=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --namespace | -n)
-    namespace=$2
-    shift 2 || usage
-    ;;
+	namespace=$2
+	shift 2 || usage
+	;;
 --selector | -l)
-    selectors+=("$2")
-    shift 2 || usage
-    ;;
+	selectors+=("$2")
+	shift 2 || usage
+	;;
 --since | -t)
-    period=$2
-    shift 2 || usage
-    ;;
+	period=$2
+	shift 2 || usage
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 *)
-    error "Unexpected argument: $1"
-    ;;
+	error "Unexpected argument: $1"
+	;;
 esac
 done
 
 context_arg=
 if [[ $context ]]; then
-    context_arg=--context=$context
+	context_arg=--context=$context
 fi
 
 namespace_arg=--all-namespaces
 if [[ $namespace ]]; then
-    namespace_arg=--namespace=$namespace
+	namespace_arg=--namespace=$namespace
 fi
 
 selectors_arg=()
 for selector in  "${selectors[@]}"; do
-    selectors_arg+=("--selector=$selector")
+	selectors_arg+=("--selector=$selector")
 done
 
 since=0
 if [[ $period ]]; then
-    duration: since "$period" || error "Invalid since time period duration"
+	duration: since "$period" || error "Invalid since time period duration"
 fi
 
 kubectl $context_arg get $namespace_arg "${selectors_arg[@]}" pods -o json | jq -r '[.items[] | .metadata | select($since == 0 or now - (.creationTimestamp | fromdate) < $since)] | sort_by(.creationTimestamp) | reverse | .[] | .creationTimestamp + " " + .namespace + " " + .name' --argjson since $since

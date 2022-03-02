@@ -12,12 +12,12 @@ export KCM_ROOT=${KCM_ROOT:-~/.kube/.kcm}
 export KCM_NAMESPACE=${KCM_NAMESPACE:-default}
 
 BASE_FIELDS=(
-    provider
-    location
-    client
-    type
-    stage
-    name
+	provider
+	location
+	client
+	type
+	stage
+	name
 )
 
 declare -A KCM_ENV=()
@@ -39,7 +39,7 @@ EXCLUDE_STAGES=()
 declare -A CLUSTER_DATA=()
 
 function usage {
-    cat <<END
+	cat <<END
 Manage configuration of Kubenetes clusters.
 
 Usage:
@@ -106,234 +106,234 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 function dryrun {
-    bool "$KCM_DRYRUN"
+	bool "$KCM_DRYRUN"
 }
 
 function cluster_selected {
-    selects "${CLUSTER[provider]}" "${INCLUDE_PROVIDERS[@]}" || return 1
-    contains "${CLUSTER[provider]}" "${EXCLUDE_PROVIDERS[@]}" && return 1
+	selects "${CLUSTER[provider]}" "${INCLUDE_PROVIDERS[@]}" || return 1
+	contains "${CLUSTER[provider]}" "${EXCLUDE_PROVIDERS[@]}" && return 1
 
-    selects "${CLUSTER[type]}" "${INCLUDE_TYPES[@]}" || return 1
-    contains "${CLUSTER[type]}" "${EXCLUDE_TYPES[@]}" && return 1
+	selects "${CLUSTER[type]}" "${INCLUDE_TYPES[@]}" || return 1
+	contains "${CLUSTER[type]}" "${EXCLUDE_TYPES[@]}" && return 1
 
-    selects "${CLUSTER[client]}" "${INCLUDE_CLIENTS[@]}" || return 1
-    contains "${CLUSTER[client]}" "${EXCLUDE_CLIENTS[@]}" && return 1
+	selects "${CLUSTER[client]}" "${INCLUDE_CLIENTS[@]}" || return 1
+	contains "${CLUSTER[client]}" "${EXCLUDE_CLIENTS[@]}" && return 1
 
-    selects "${CLUSTER[stage]}" "${INCLUDE_STAGES[@]}" || return 1
-    contains "${CLUSTER[stage]}" "${EXCLUDE_STAGES[@]}" && return 1
+	selects "${CLUSTER[stage]}" "${INCLUDE_STAGES[@]}" || return 1
+	contains "${CLUSTER[stage]}" "${EXCLUDE_STAGES[@]}" && return 1
 
-    return 0
+	return 0
 }
 
 function filtering_clusters {
-    local len
-    for len in \
-        ${#INCLUDE_PROVIDERS[@]} \
-        ${#EXCLUDE_PROVIDERS[@]} \
-        ${#INCLUDE_TYPES[@]} \
-        ${#EXCLUDE_TYPES[@]} \
-        ${#INCLUDE_CLIENTS[@]} \
-        ${#EXCLUDE_CLIENTS[@]} \
-        ${#INCLUDE_STAGES[@]} \
-        ${#EXCLUDE_STAGES[@]}
-    do
-        [[ $len -gt 0 ]] && return 0
-    done
-    return 1
+	local len
+	for len in \
+		${#INCLUDE_PROVIDERS[@]} \
+		${#EXCLUDE_PROVIDERS[@]} \
+		${#INCLUDE_TYPES[@]} \
+		${#EXCLUDE_TYPES[@]} \
+		${#INCLUDE_CLIENTS[@]} \
+		${#EXCLUDE_CLIENTS[@]} \
+		${#INCLUDE_STAGES[@]} \
+		${#EXCLUDE_STAGES[@]}
+	do
+		[[ $len -gt 0 ]] && return 0
+	done
+	return 1
 }
 
 function defined_cluster {
-    local cluster=$1
+	local cluster=$1
 
-    [[ -e $KCM_ROOT/$cluster/config ]]
+	[[ -e $KCM_ROOT/$cluster/config ]]
 }
 
 function load_clusters {
-    local cluster file filter
+	local cluster file filter
 
-    filtering_clusters && filter=_
+	filtering_clusters && filter=_
 
-    CLUSTERS=()
+	CLUSTERS=()
 
-    for file in "$KCM_ROOT"/*/config; do
-        [[ -f $file ]] || continue
+	for file in "$KCM_ROOT"/*/config; do
+		[[ -f $file ]] || continue
 
-        file_dir:: file
-        file_name: cluster "$file"
+		file_dir:: file
+		file_name: cluster "$file"
 
-        [[ ${#TARGET_CLUSTER[@]} -eq 0 || ${TARGET_CLUSTER[$cluster]} ]] || continue
+		[[ ${#TARGET_CLUSTER[@]} -eq 0 || ${TARGET_CLUSTER[$cluster]} ]] || continue
 
-        if [[ $filter ]]; then
-            load_meta "$cluster"
+		if [[ $filter ]]; then
+			load_meta "$cluster"
 
-            cluster_selected || continue
-        fi
+			cluster_selected || continue
+		fi
 
-        CLUSTERS+=("$cluster")
-    done
+		CLUSTERS+=("$cluster")
+	done
 }
 
 function load_data {
-    local json=$1 field fields=()
+	local json=$1 field fields=()
 
-    CLUSTER=()
+	CLUSTER=()
 
-    jq -e 'type == "object"' <<< "$json" >/dev/null || error "Invalid cluster data: $json"
+	jq -e 'type == "object"' <<< "$json" >/dev/null || error "Invalid cluster data: $json"
 
-    readarray -t fields < <(jq -r keys[] <<< "$json")
+	readarray -t fields < <(jq -r keys[] <<< "$json")
 
-    for field in "${fields[@]}"; do
-        valid_name "$field" || error "Invalid name for cluster field: $field"
+	for field in "${fields[@]}"; do
+		valid_name "$field" || error "Invalid name for cluster field: $field"
 
-        CLUSTER[$field]=$(jq -r .$field <<< "$json")
-    done
+		CLUSTER[$field]=$(jq -r .$field <<< "$json")
+	done
 
-    for field in "${BASE_FIELDS[@]}"; do
-        [[ ${CLUSTER[$field]} ]] || error "Missing value for cluster $field: ${CLUSTER[$field]}"
+	for field in "${BASE_FIELDS[@]}"; do
+		[[ ${CLUSTER[$field]} ]] || error "Missing value for cluster $field: ${CLUSTER[$field]}"
 
-        valid_identifier "${CLUSTER[$field]}" || error "Invalid identifier for cluster $field: ${CLUSTER[$field]}"
-    done
+		valid_identifier "${CLUSTER[$field]}" || error "Invalid identifier for cluster $field: ${CLUSTER[$field]}"
+	done
 
-    for field in type stage; do
-        [[ ${CLUSTER[$field]} == *-* ]] && error "Hyphen not allowed for cluster $field: ${CLUSTER[$field]}"
-    done
+	for field in type stage; do
+		[[ ${CLUSTER[$field]} == *-* ]] && error "Hyphen not allowed for cluster $field: ${CLUSTER[$field]}"
+	done
 
-    CLUSTER[_]=${CLUSTER[client]}-${CLUSTER[type]}-${CLUSTER[stage]}_${CLUSTER[provider]}_${CLUSTER[location]}_${CLUSTER[name]}
+	CLUSTER[_]=${CLUSTER[client]}-${CLUSTER[type]}-${CLUSTER[stage]}_${CLUSTER[provider]}_${CLUSTER[location]}_${CLUSTER[name]}
 }
 
 function build_meta {
-    local field field_list field_args=()
+	local field field_list field_args=()
 
-    for field in "${!CLUSTER[@]}"; do
-        field_list+="$field:\$$field,"
-        field_args+=(--arg $field "${CLUSTER[$field]}")
-    done
+	for field in "${!CLUSTER[@]}"; do
+		field_list+="$field:\$$field,"
+		field_args+=(--arg $field "${CLUSTER[$field]}")
+	done
 
-    jq -n -S "{$field_list}" "${field_args[@]}"
+	jq -n -S "{$field_list}" "${field_args[@]}"
 }
 
 function save_meta {
-    local meta_file=$KCM_ROOT/${CLUSTER[_]}/meta.json
+	local meta_file=$KCM_ROOT/${CLUSTER[_]}/meta.json
 
-    build_meta > "$meta_file"
+	build_meta > "$meta_file"
 }
 
 function load_meta {
-    local cluster=$1
+	local cluster=$1
 
-    coproc:run load_meta jq --unbuffered -r 'to_entries | length, (map(.key, (.value | tostring)) | map((length | tostring), .))[]'
+	coproc:run load_meta jq --unbuffered -r 'to_entries | length, (map(.key, (.value | tostring)) | map((length | tostring), .))[]'
 
-    local data=${CLUSTER_DATA[$cluster]}
+	local data=${CLUSTER_DATA[$cluster]}
 
-    debug "Loading meta data for cluster: $cluster"
+	debug "Loading meta data for cluster: $cluster"
 
-    if [[ ! $data ]]; then
-        trace "Reading meta data file"
+	if [[ ! $data ]]; then
+		trace "Reading meta data file"
 
-        local meta_file=$KCM_ROOT/$cluster/meta.json
+		local meta_file=$KCM_ROOT/$cluster/meta.json
 
-        [[ -e $meta_file ]] || error "Cluster meta data file not found"
+		[[ -e $meta_file ]] || error "Cluster meta data file not found"
 
-        IFS= read -r -d '' data < "$meta_file" || :
+		IFS= read -r -d '' data < "$meta_file" || :
 
-        [[ $data ]] || error "Failed loading cluster meta data file"
+		[[ $data ]] || error "Failed loading cluster meta data file"
 
-        CLUSTER_DATA[$cluster]=$data
-    fi
+		CLUSTER_DATA[$cluster]=$data
+	fi
 
-    coproc:write load_meta "$data" $'\n'
+	coproc:write load_meta "$data" $'\n'
 
-    CLUSTER=()
+	CLUSTER=()
 
-    local field_count field_name field_value
+	local field_count field_name field_value
 
-    coproc:read_line load_meta; field_count=$COPROC_DATA
+	coproc:read_line load_meta; field_count=$COPROC_DATA
 
-    for ((i=0; i<$field_count; i++)); do
-        coproc:read_field load_meta; field_name=$COPROC_DATA
+	for ((i=0; i<$field_count; i++)); do
+		coproc:read_field load_meta; field_name=$COPROC_DATA
 
-        valid_name "$field_name" || error "Invalid name for meta data field: $field_name"
+		valid_name "$field_name" || error "Invalid name for meta data field: $field_name"
 
-        coproc:read_field load_meta; field_value=$COPROC_DATA
+		coproc:read_field load_meta; field_value=$COPROC_DATA
 
-        CLUSTER[$field_name]=$field_value
-    done
+		CLUSTER[$field_name]=$field_value
+	done
 
-    [[ ${CLUSTER[_]} == "$cluster" ]] || error "Invalid meta data key for cluster: $cluster"
+	[[ ${CLUSTER[_]} == "$cluster" ]] || error "Invalid meta data key for cluster: $cluster"
 }
 
 function check_meta {
-    local cluster=$1
+	local cluster=$1
 
-    [[ "${CLUSTER_DATA[$cluster]}" ]] || load_meta "$cluster"
+	[[ "${CLUSTER_DATA[$cluster]}" ]] || load_meta "$cluster"
 }
 
 function set_env {
-    KCM_ENV[$1]=$2
-    export "$1=$2"
+	KCM_ENV[$1]=$2
+	export "$1=$2"
 }
 
 function load_env {
-    KCM_ENV=()
+	KCM_ENV=()
 
-    set_env KCM_CLUSTER "${CLUSTER[_]}"
+	set_env KCM_CLUSTER "${CLUSTER[_]}"
 
-    for field in "${!CLUSTER[@]}"; do
-        [[ $field == _ ]] && continue
+	for field in "${!CLUSTER[@]}"; do
+		[[ $field == _ ]] && continue
 
-        set_env KCM_CLUSTER_${field^^} "${CLUSTER[$field]}"
-    done
+		set_env KCM_CLUSTER_${field^^} "${CLUSTER[$field]}"
+	done
 
-    set_env KUBECONFIG "$KCM_ROOT"/${CLUSTER[_]}/config
+	set_env KUBECONFIG "$KCM_ROOT"/${CLUSTER[_]}/config
 }
 
 function unload_env {
-    unset -v ${!KCM_ENV[@]}
+	unset -v ${!KCM_ENV[@]}
 }
 
 function export_list {
-    local var=$1 && shift
-    local IFS=,
+	local var=$1 && shift
+	local IFS=,
 
-    export "$var=$*"
+	export "$var=$*"
 }
 
 function check_cluster {
-    kubectl version &>/dev/null
+	kubectl version &>/dev/null
 }
 
 function run_cluster {
-    msg "Cluster: ${CLUSTER[_]}"
+	msg "Cluster: ${CLUSTER[_]}"
 
-    run "$@"
+	run "$@"
 }
 
 function run_cluster_job {
-    local dir=$1 && shift
+	local dir=$1 && shift
 
-    set +e
+	set +e
 
-    { echo ${CLUSTER[_]} > "$dir"/cluster; } 2>/dev/null
+	{ echo ${CLUSTER[_]} > "$dir"/cluster; } 2>/dev/null
 
-    { run_cluster "$@" 1> "$dir"/out 2> "$dir"/err; } 2>/dev/null
+	{ run_cluster "$@" 1> "$dir"/out 2> "$dir"/err; } 2>/dev/null
 
-    { echo $? > "$dir"/rc; } 2>/dev/null
+	{ echo $? > "$dir"/rc; } 2>/dev/null
 
-    rm -f "$dir"/run
+	rm -f "$dir"/run
 }
 
 function provider_call {
-    local op=$1 && shift
+	local op=$1 && shift
 
-    local fct=kcm_$op
+	local fct=kcm_$op
 
-    declare -F $fct >/dev/null || error "Provider operation not defined: $op"
+	declare -F $fct >/dev/null || error "Provider operation not defined: $op"
 
-    $fct "$@"
+	$fct "$@"
 }
 
 ##
@@ -341,77 +341,77 @@ function provider_call {
 ##
 
 function kcx {
-    [[ $# -le 1 ]] || return $(errorf)
+	[[ $# -le 1 ]] || return $(errorf)
 
-    local current_cluster=$KCM_CLUSTER
+	local current_cluster=$KCM_CLUSTER
 
-    if [[ $# -eq 0 ]]; then
-        KCX_PREV=$current_cluster
+	if [[ $# -eq 0 ]]; then
+		KCX_PREV=$current_cluster
 
-        . <(kcm env -)
+		. <(kcm env -)
 
-        return
-    fi
+		return
+	fi
 
-    local cluster=$1
+	local cluster=$1
 
-    if [[ $cluster == _ ]]; then
-        [[ $current_cluster ]] && echo $current_cluster
+	if [[ $cluster == _ ]]; then
+		[[ $current_cluster ]] && echo $current_cluster
 
-        return 0
-    fi
+		return 0
+	fi
 
-    if [[ $cluster == - ]]; then
-        cluster=$KCX_PREV
+	if [[ $cluster == - ]]; then
+		cluster=$KCX_PREV
 
-        [[ $cluster ]] && kcm ls "$cluster" &>/dev/null || return 0
-    fi
+		[[ $cluster ]] && kcm ls "$cluster" &>/dev/null || return 0
+	fi
 
-    KCX_PREV=$current_cluster
+	KCX_PREV=$current_cluster
 
-    . <(kcm env "$cluster")
+	. <(kcm env "$cluster")
 
-    [[ $(kcn _) ]] || kcn
+	[[ $(kcn _) ]] || kcn
 }
 
 function __kcx {
-    [[ $COMP_CWORD -eq 1 ]] || return
+	[[ $COMP_CWORD -eq 1 ]] || return
 
-    COMPREPLY=($(compgen -W "$(kcm ls)" -- "$2"))
+	COMPREPLY=($(compgen -W "$(kcm ls)" -- "$2"))
 }
 
 function kcn {
-    [[ $# -le 1 ]] || return $(errorf)
+	[[ $# -le 1 ]] || return $(errorf)
 
-    local namespace=$1
+	local namespace=$1
 
-    if [[ $# -eq 0 ]]; then
-        namespace=${KCN_DEFAULT:-default}
-    fi
+	if [[ $# -eq 0 ]]; then
+		namespace=${KCN_DEFAULT:-default}
+	fi
 
-    local current_namespace=$(kubectl config get-contexts "$(kubectl config current-context)" --no-headers | awk '{print $5}')
+	local current_namespace=$(kubectl config get-contexts "$(kubectl config current-context)" --no-headers | awk '{print $5}')
 
-    if [[ $namespace == _ ]]; then
-        [[ $current_namespace ]] && echo $current_namespace
+	if [[ $namespace == _ ]]; then
+		[[ $current_namespace ]] && echo $current_namespace
 
-        return 0
-    fi
+		return 0
+	fi
 
-    if [[ $namespace == - ]]; then
-        namespace=$KCN_PREV
+	if [[ $namespace == - ]]; then
+		namespace=$KCN_PREV
 
-        [[ $namespace ]] || return 0
-    fi
+		[[ $namespace ]] || return 0
+	fi
 
-    KCN_PREV=$current_namespace
+	KCN_PREV=$current_namespace
 
-    kubectl config set-context --current --namespace "$namespace" >/dev/null
+	kubectl config set-context --current --namespace "$namespace" >/dev/null
 }
 
 function __kcn {
-    [[ $COMP_CWORD -eq 1 ]] || return
+	[[ $COMP_CWORD -eq 1 ]] || return
 
-    COMPREPLY=($(compgen -W "$(kubectl get namespaces -o name | xargs basename -a)" -- "$2"))
+	COMPREPLY=($(compgen -W "$(kubectl get namespaces -o name | xargs basename -a)" -- "$2"))
 }
 
 command=$1
@@ -428,87 +428,87 @@ keep=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --kcm-provider | -K)
-    push providers "$2"
-    shift 2 || usage
-    ;;
+	push providers "$2"
+	shift 2 || usage
+	;;
 --namespace | -N)
-    KCM_NAMESPACE=$2
-    shift 2 || usage
-    ;;
+	KCM_NAMESPACE=$2
+	shift 2 || usage
+	;;
 --provider | -p)
-    push INCLUDE_PROVIDERS "$2"
-    shift 2 || usage
-    ;;
+	push INCLUDE_PROVIDERS "$2"
+	shift 2 || usage
+	;;
 --no-provider | -P)
-    push EXCLUDE_PROVIDERS "$2"
-    shift 2 || usage
-    ;;
+	push EXCLUDE_PROVIDERS "$2"
+	shift 2 || usage
+	;;
 --type | -t)
-    push INCLUDE_TYPES "$2"
-    shift 2 || usage
-    ;;
+	push INCLUDE_TYPES "$2"
+	shift 2 || usage
+	;;
 --no-type | -T)
-    push EXCLUDE_TYPES "$2"
-    shift 2 || usage
-    ;;
+	push EXCLUDE_TYPES "$2"
+	shift 2 || usage
+	;;
 --client | -c)
-    push INCLUDE_CLIENTS "$2"
-    shift 2 || usage
-    ;;
+	push INCLUDE_CLIENTS "$2"
+	shift 2 || usage
+	;;
 --no-client | -C)
-    push EXCLUDE_CLIENTS "$2"
-    shift 2 || usage
-    ;;
+	push EXCLUDE_CLIENTS "$2"
+	shift 2 || usage
+	;;
 --stage | -s)
-    push INCLUDE_STAGES "$2"
-    shift 2 || usage
-    ;;
+	push INCLUDE_STAGES "$2"
+	shift 2 || usage
+	;;
 --no-stage | -S)
-    push EXCLUDE_STAGES "$2"
-    shift 2 || usage
-    ;;
+	push EXCLUDE_STAGES "$2"
+	shift 2 || usage
+	;;
 --parallel | -j)
-    parallel=parallel
-    shift
-    ;;
+	parallel=parallel
+	shift
+	;;
 --ignore | -i)
-    ignore=ignore
-    shift
-    ;;
+	ignore=ignore
+	shift
+	;;
 --force | -f)
-    force=force
-    shift
-    ;;
+	force=force
+	shift
+	;;
 --keep | -k)
-    keep=keep
-    shift
-    ;;
+	keep=keep
+	shift
+	;;
 --quiet | -q)
-    LOG_LEVEL=$LOG_LEVEL_ERROR
-    shift
-    ;;
+	LOG_LEVEL=$LOG_LEVEL_ERROR
+	shift
+	;;
 --verbose | -v)
-    KCM_DEBUG=true
-    LOG_LEVEL=$LOG_LEVEL_DEBUG
-    shift
-    ;;
+	KCM_DEBUG=true
+	LOG_LEVEL=$LOG_LEVEL_DEBUG
+	shift
+	;;
 --dry-run | -n)
-    KCM_DRYRUN=true
-    shift
-    ;;
+	KCM_DRYRUN=true
+	shift
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -?*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
@@ -525,183 +525,183 @@ ARGS=()
 ## extract run args
 
 if [[ $command == run ]]; then
-    if [[ $1 == - ]]; then
-        shift
-        for ((n=1; n<=$#; n++)); do
-            if [[ ${!n} == - ]]; then
-                ARGS=("${@:$n+1}")
-                set -- "${@:1:$n-1}"
-                break
-            fi
-        done
-    else
-        ARGS=("$@")
-        set --
-    fi
+	if [[ $1 == - ]]; then
+		shift
+		for ((n=1; n<=$#; n++)); do
+			if [[ ${!n} == - ]]; then
+				ARGS=("${@:$n+1}")
+				set -- "${@:1:$n-1}"
+				break
+			fi
+		done
+	else
+		ARGS=("$@")
+		set --
+	fi
 fi
 
 ## completion and utility functions output
 
 if [[ $command == complete ]]; then
-    for cmd in kcx kcn; do
-        if is_function $cmd; then
-            declare -f $cmd
-        fi
-        declare -f __$cmd
-        echo complete -F __$cmd $cmd
-    done
+	for cmd in kcx kcn; do
+		if is_function $cmd; then
+			declare -f $cmd
+		fi
+		declare -f __$cmd
+		echo complete -F __$cmd $cmd
+	done
 
-    exit 0 # complete
+	exit 0 # complete
 fi
 
 ## cluster env output
 
 if [[ $command == env ]]; then
-    cluster=$1
-    shift || usage
+	cluster=$1
+	shift || usage
 
-    [[ $# -eq 0 ]] || error "Unexpected argument: $1"
+	[[ $# -eq 0 ]] || error "Unexpected argument: $1"
 
-    if [[ $cluster != - ]]; then
-        defined_cluster "$cluster" || error "Config not defined for cluster: $cluster"
-    fi
+	if [[ $cluster != - ]]; then
+		defined_cluster "$cluster" || error "Config not defined for cluster: $cluster"
+	fi
 
-    if [[ $KCM_CLUSTER ]] && defined_cluster "$KCM_CLUSTER"; then
-        load_meta "$KCM_CLUSTER"
-        load_env
+	if [[ $KCM_CLUSTER ]] && defined_cluster "$KCM_CLUSTER"; then
+		load_meta "$KCM_CLUSTER"
+		load_env
 
-        echo unset -v ${!KCM_ENV[@]}
-    fi
+		echo unset -v ${!KCM_ENV[@]}
+	fi
 
-    if [[ $cluster != - ]]; then
-        load_meta "$cluster"
-        load_env
+	if [[ $cluster != - ]]; then
+		load_meta "$cluster"
+		load_env
 
-        for var in "${!KCM_ENV[@]}"; do
-            val=${KCM_ENV[$var]}
-            echo export "$var=${val@Q}"
-        done
-    fi
+		for var in "${!KCM_ENV[@]}"; do
+			val=${KCM_ENV[$var]}
+			echo export "$var=${val@Q}"
+		done
+	fi
 
-    exit 0 # env
+	exit 0 # env
 fi
 
 ## load clusters
 
 for cluster in "$@"; do
-    TARGET_CLUSTER[$cluster]=$cluster
+	TARGET_CLUSTER[$cluster]=$cluster
 done
 
 load_clusters
 
 if [[ $command != get ]]; then
-    for target_cluster in "${!TARGET_CLUSTER[@]}"; do
-        contains "$target_cluster" "${CLUSTERS[@]}" || error "Cluster not found: $target_cluster"
-    done
+	for target_cluster in "${!TARGET_CLUSTER[@]}"; do
+		contains "$target_cluster" "${CLUSTERS[@]}" || error "Cluster not found: $target_cluster"
+	done
 fi
 
 ## list configured clusters
 
 if [[ $command == ls ]]; then
-    for cluster in "${CLUSTERS[@]}"; do
-        echo "$cluster"
-    done
+	for cluster in "${CLUSTERS[@]}"; do
+		echo "$cluster"
+	done
 
-    exit 0 # ls
+	exit 0 # ls
 fi
 
 ## output configured clusters meta data
 
 if [[ $command == meta ]]; then
-    for cluster in "${CLUSTERS[@]}"; do
-        check_meta "$cluster"
-    done
+	for cluster in "${CLUSTERS[@]}"; do
+		check_meta "$cluster"
+	done
 
-    for cluster in "${CLUSTERS[@]}"; do
-        echo "${CLUSTER_DATA[$cluster]}"
-    done \
-        | jq -s -c -M
+	for cluster in "${CLUSTERS[@]}"; do
+		echo "${CLUSTER_DATA[$cluster]}"
+	done \
+		| jq -s -c -M
 
-    exit 0 # meta
+	exit 0 # meta
 fi
 
 ## run command for clusters
 
 if [[ $command == run ]]; then
-    [[ ${#ARGS} -gt 0 ]] || usage
+	[[ ${#ARGS} -gt 0 ]] || usage
 
-    job_dirs=()
+	job_dirs=()
 
-    for cluster in "${CLUSTERS[@]}"; do
-        load_meta "$cluster"
-        load_env
+	for cluster in "${CLUSTERS[@]}"; do
+		load_meta "$cluster"
+		load_env
 
-        if [[ $parallel ]]; then
-            tmp_dir; job_dir=$TMP_DIR
+		if [[ $parallel ]]; then
+			tmp_dir; job_dir=$TMP_DIR
 
-            touch "$job_dir"/run
+			touch "$job_dir"/run
 
-            job:run - run_cluster_job "$job_dir" "${ARGS[@]}"
+			job:run - run_cluster_job "$job_dir" "${ARGS[@]}"
 
-            job_dirs+=("$job_dir")
-        else
-            err=
+			job_dirs+=("$job_dir")
+		else
+			err=
 
-            run_cluster "${ARGS[@]}" || err=$?
+			run_cluster "${ARGS[@]}" || err=$?
 
-            if [[ $err && ! $ignore ]]; then
-                exit $err
-            fi
-        fi
-    done
+			if [[ $err && ! $ignore ]]; then
+				exit $err
+			fi
+		fi
+	done
 
-    if [[ $parallel ]]; then
-        while :; do
-            for ((i=0; i<${#job_dirs[@]}; i++)); do
-                job_dir=${job_dirs[$i]}
+	if [[ $parallel ]]; then
+		while :; do
+			for ((i=0; i<${#job_dirs[@]}; i++)); do
+				job_dir=${job_dirs[$i]}
 
-                [[ -e "$job_dir"/run ]] && continue
+				[[ -e "$job_dir"/run ]] && continue
 
-                _debug && debug "Fihished running job: $(< "$job_dir"/cluster) [$(< "$job_dir"/rc)]"
+				_debug && debug "Fihished running job: $(< "$job_dir"/cluster) [$(< "$job_dir"/rc)]"
 
-                cat "$job_dir"/err >&2
+				cat "$job_dir"/err >&2
 
-                if [[ ! $ignore ]]; then
-                    read -r job_rc < "$job_dir"/rc
+				if [[ ! $ignore ]]; then
+					read -r job_rc < "$job_dir"/rc
 
-                    [[ $job_rc -eq 0 ]] || exit $job_rc
-                fi
+					[[ $job_rc -eq 0 ]] || exit $job_rc
+				fi
 
-                cat "$job_dir"/out >&1
+				cat "$job_dir"/out >&1
 
-                job_dirs=("${job_dirs[@]:0:i}" "${job_dirs[@]:i+1}")
+				job_dirs=("${job_dirs[@]:0:i}" "${job_dirs[@]:i+1}")
 
-                i=$((i-1))
-            done
+				i=$((i-1))
+			done
 
-            [[ ${#job_dirs[@]} -eq 0 ]] && break
+			[[ ${#job_dirs[@]} -eq 0 ]] && break
 
-            _trace && trace "Running jobs: ${#job_dirs[@]}"
+			_trace && trace "Running jobs: ${#job_dirs[@]}"
 
-            sleep .1
-        done
-    fi
+			sleep .1
+		done
+	fi
 
-    exit 0 # run
+	exit 0 # run
 fi
 
 ## remove configured clusters
 
 if [[ $command == rm ]]; then
-    for cluster in "${CLUSTERS[@]}"; do
-        msg "Removing cluster: $cluster"
+	for cluster in "${CLUSTERS[@]}"; do
+		msg "Removing cluster: $cluster"
 
-        if ! dryrun; then
-            rm -rf "$KCM_ROOT"/$cluster
-        fi
-    done
+		if ! dryrun; then
+			rm -rf "$KCM_ROOT"/$cluster
+		fi
+	done
 
-    exit 0 # rm
+	exit 0 # rm
 fi
 
 ## get clusters configuration
@@ -709,9 +709,9 @@ fi
 [[ $command == get ]] || error "Invalid command: $command"
 
 if [[ ${#providers[@]} -eq 0 ]]; then
-    [[ $KCM_PROVIDER ]] || error "No cluster operations implementation provider defined in environment"
+	[[ $KCM_PROVIDER ]] || error "No cluster operations implementation provider defined in environment"
 
-    push providers "$KCM_PROVIDER"
+	push providers "$KCM_PROVIDER"
 fi
 
 export_list KCM_PROVIDER_INCLUDE_PROVIDERS "${INCLUDE_PROVIDERS[@]}"
@@ -726,83 +726,83 @@ export_list KCM_PROVIDER_EXCLUDE_STAGES "${EXCLUDE_STAGES[@]}"
 cluster_list=
 
 for provider in "${providers[@]}"; do
-    is_command "$provider" || error "Cluster provider command not found: $provider"
+	is_command "$provider" || error "Cluster provider command not found: $provider"
 
-    set +e -o pipefail
+	set +e -o pipefail
 
-    cluster_list+=$(
-        set -e
+	cluster_list+=$(
+		set -e
 
-        debug "Loading provider: $provider"
+		debug "Loading provider: $provider"
 
-        . $provider
+		. $provider
 
-        debug "Fetching clusters data"
+		debug "Fetching clusters data"
 
-        provider_call fetch | while IFS= read -r data; do
-            debug "Processing cluster data entry:" "$data"
+		provider_call fetch | while IFS= read -r data; do
+			debug "Processing cluster data entry:" "$data"
 
-            load_data "$data"
+			load_data "$data"
 
-            [[ ${#TARGET_CLUSTER[@]} -eq 0 || ${TARGET_CLUSTER[${CLUSTER[_]}]} ]] || continue
+			[[ ${#TARGET_CLUSTER[@]} -eq 0 || ${TARGET_CLUSTER[${CLUSTER[_]}]} ]] || continue
 
-            cluster_selected || continue
+			cluster_selected || continue
 
-            msg "Configuring cluster:" @green@ "${CLUSTER[_]}"
+			msg "Configuring cluster:" @green@ "${CLUSTER[_]}"
 
-            load_env
+			load_env
 
-            if [[ ! $force ]] && contains "${CLUSTER[_]}" "${CLUSTERS[@]}" && check_cluster; then
-                debug "Skipping config for reachable cluster: ${CLUSTER[_]}"
-            else
-                config=$(provider_call config)
+			if [[ ! $force ]] && contains "${CLUSTER[_]}" "${CLUSTERS[@]}" && check_cluster; then
+				debug "Skipping config for reachable cluster: ${CLUSTER[_]}"
+			else
+				config=$(provider_call config)
 
-                if ! dryrun && [[ $config ]]; then
-                    mkdir -p "$(dirname "$KUBECONFIG")"
+				if ! dryrun && [[ $config ]]; then
+					mkdir -p "$(dirname "$KUBECONFIG")"
 
-                    echo "$config" > "$KUBECONFIG"
+					echo "$config" > "$KUBECONFIG"
 
-                    chmod 600 "$KUBECONFIG"
+					chmod 600 "$KUBECONFIG"
 
-                    save_meta
-                fi
-            fi
+					save_meta
+				fi
+			fi
 
-            unload_env
+			unload_env
 
-            echo "${CLUSTER[_]}"
-        done
-    )
+			echo "${CLUSTER[_]}"
+		done
+	)
 
-    rc=$?
+	rc=$?
 
-    set -e +o pipefail
+	set -e +o pipefail
 
-    [[ $rc -eq 0 ]] || error "Failed processing clusters with provider: $provider"
+	[[ $rc -eq 0 ]] || error "Failed processing clusters with provider: $provider"
 
-    cluster_list+=$'\n'
+	cluster_list+=$'\n'
 done
 
 readarray -t get_clusters < <(echo -n "${cluster_list%$'\n'}")
 
 declare -A get_cluster=()
 for cluster in "${get_clusters[@]}"; do
-    [[ ${get_cluster[$cluster]} ]] && error "Duplicate identity returned for cluster: $cluster"
-    get_cluster[$cluster]=_
+	[[ ${get_cluster[$cluster]} ]] && error "Duplicate identity returned for cluster: $cluster"
+	get_cluster[$cluster]=_
 done
 
 for target_cluster in "${!TARGET_CLUSTER[@]}"; do
-    [[ ${get_cluster[$target_cluster]} ]] || error "Cluster not found: $target_cluster"
+	[[ ${get_cluster[$target_cluster]} ]] || error "Cluster not found: $target_cluster"
 done
 
 [[ $keep ]] && exit
 
 for cluster in "${CLUSTERS[@]}"; do
-    [[ ${get_cluster[$cluster]} ]] && continue
+	[[ ${get_cluster[$cluster]} ]] && continue
 
-    note "Flushing config for obsolete cluster: $cluster"
+	note "Flushing config for obsolete cluster: $cluster"
 
-    if ! dryrun; then
-        rm -rf "$KCM_ROOT"/$cluster
-    fi
+	if ! dryrun; then
+		rm -rf "$KCM_ROOT"/$cluster
+	fi
 done

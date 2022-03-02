@@ -5,7 +5,7 @@ set -e
 . functions
 
 usage() {
-    cat <<END
+	cat <<END
 HTTP query (with curl) through a kube port forward.
 
 Usage:
@@ -19,7 +19,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -28,26 +28,26 @@ namespace=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --namespace | -n)
-    namespace=$2
-    shift 2 || usage
-    ;;
+	namespace=$2
+	shift 2 || usage
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 

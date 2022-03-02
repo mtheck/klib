@@ -5,7 +5,7 @@ set -e
 . functions
 
 usage() {
-    cat <<END
+	cat <<END
 Run a TCP dump on a pod.
 
 Usage:
@@ -21,7 +21,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -32,30 +32,30 @@ proxy=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --namespace | -n)
-    namespace=$2
-    shift 2 || usage
-    ;;
+	namespace=$2
+	shift 2 || usage
+	;;
 --proxy | -p)
-    proxy=proxy
-    shift
-    ;;
+	proxy=proxy
+	shift
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
@@ -68,9 +68,9 @@ kubectl_args=()
 exec_kubectl() { kubectl "${kubectl_args[@]}" "$@"; }
 
 if [[ ! $pod ]]; then
-    pod=$(exec_kubectl get pod -o name | xargs -r basename -a | fzf --tac) || error "No pod selected"
+	pod=$(exec_kubectl get pod -o name | xargs -r basename -a | fzf --tac) || error "No pod selected"
 else
-    [[ $(exec_kubectl get pod "$pod" -o name --ignore-not-found) ]] || error "Pod not found: $pod"
+	[[ $(exec_kubectl get pod "$pod" -o name --ignore-not-found) ]] || error "Pod not found: $pod"
 fi
 
 [[ $namespace ]] || namespace=$(exec_kubectl get pod "$pod" --template {{.metadata.namespace}})
@@ -81,42 +81,42 @@ snooper_pod="tcpdump-$RANDOM"
 
 snooper_pod_env='[]'
 if [[ $proxy ]]; then
-    snooper_pod_env='[
-        {"name": "http_proxy", "value": "'"$http_proxy"'"},
-        {"name": "https_proxy", "value": "'"$https_proxy"'"},
-        {"name": "no_proxy", "value": "'"$no_proxy"'"}
-    ]'
+	snooper_pod_env='[
+		{"name": "http_proxy", "value": "'"$http_proxy"'"},
+		{"name": "https_proxy", "value": "'"$https_proxy"'"},
+		{"name": "no_proxy", "value": "'"$no_proxy"'"}
+	]'
 fi
 
 snooper_pod_overrides='{"spec":{
-  "nodeName": "'$node'",
-  "hostPID": true,
-  "hostNetwork": true,
-  "tolerations": [{"operator": "Exists"}],
-  "containers":[{
-    "name": "snooper",
-    "image": "debian",
-    "command":["bash", "-c", "apt-get update && apt-get install iproute2 tcpdump docker.io -yq --no-install-recommends && touch /ready && sleep 3600"],
-    "env": '"$snooper_pod_env",'
-    "securityContext": {"privileged": true},
-    "volumeMounts":[{
-      "name": "dockersocket",
-      "mountPath": "/var/run/docker.sock"
-    }]
-  }],
-  "volumes":[{
-      "name": "dockersocket",
-      "hostPath":{
-        "path": "/var/run/docker.sock"
-      }
-    }]
+	"nodeName": "'$node'",
+	"hostPID": true,
+	"hostNetwork": true,
+	"tolerations": [{"operator": "Exists"}],
+	"containers":[{
+		"name": "snooper",
+		"image": "debian",
+		"command":["bash", "-c", "apt-get update && apt-get install iproute2 tcpdump docker.io -yq --no-install-recommends && touch /ready && sleep 3600"],
+		"env": '"$snooper_pod_env",'
+		"securityContext": {"privileged": true},
+		"volumeMounts":[{
+			"name": "dockersocket",
+			"mountPath": "/var/run/docker.sock"
+		}]
+	}],
+	"volumes":[{
+		"name": "dockersocket",
+		"hostPath":{
+			"path": "/var/run/docker.sock"
+		}
+	}]
 }}'
 
 msg "Creating snooper pod" @green@ $snooper_pod "on target pod node" @green@ $node
 
 exec_kubectl run "$snooper_pod" --image debian --restart=Never \
-    --labels "kind=debug,owner=$USER,pod=$pod" \
-    --overrides "$snooper_pod_overrides"
+	--labels "kind=debug,owner=$USER,pod=$pod" \
+	--overrides "$snooper_pod_overrides"
 
 tmp_file; dump_script=$TMP_FILE
 

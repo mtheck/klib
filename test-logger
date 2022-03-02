@@ -7,7 +7,7 @@ set -e
 SELECTOR=app.kubernetes.io/name=test-logger,app.kubernetes.io/instance
 
 function usage {
-    cat <<END
+	cat <<END
 Manage test loggers.
 
 Usage:
@@ -22,7 +22,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 declare -A CMD=()
@@ -30,21 +30,21 @@ declare -A CMD=()
 declare -A ENTRY=()
 
 function set_entry {
-    local namespace= name=$1
+	local namespace= name=$1
 
-    if [[ $name == */* ]]; then
-        namespace=${name%%/*}
-        name=${name:${#namespace}+1}
-    fi
+	if [[ $name == */* ]]; then
+		namespace=${name%%/*}
+		name=${name:${#namespace}+1}
+	fi
 
-    valid_identifier "$name" || error "Invalid name identifier: $name"
-    [[ ! $namespace ]] || valid_identifier "$namespace" || error "Invalid namespace identifier: $namespace"
+	valid_identifier "$name" || error "Invalid name identifier: $name"
+	[[ ! $namespace ]] || valid_identifier "$namespace" || error "Invalid namespace identifier: $namespace"
 
-    ENTRY=([namespace]=$namespace [name]=$name)
+	ENTRY=([namespace]=$namespace [name]=$name)
 }
 
 function kubectl_entry {
-    kubectl -n "${ENTRY[namespace]}" -l "$SELECTOR=${ENTRY[name]}" "$@"
+	kubectl -n "${ENTRY[namespace]}" -l "$SELECTOR=${ENTRY[name]}" "$@"
 }
 
 require_command jq
@@ -55,63 +55,63 @@ annotations=()
 while [[ $# -gt 0 ]]; do
 case $1 in
 --labels | -l)
-    push labels "$2"
-    shift 2 || usage
-    ;;
+	push labels "$2"
+	shift 2 || usage
+	;;
 --annotations | -a)
-    push annotations "$2"
-    shift 2 || usage
-    ;;
+	push annotations "$2"
+	shift 2 || usage
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
 CMD[start]=_; __start() {
-    local namespace
-    namespace=$(kubectl_entry get po -o jsonpath={.items[*].metadata.namespace} | head)
+	local namespace
+	namespace=$(kubectl_entry get po -o jsonpath={.items[*].metadata.namespace} | head)
 
-    [[ $namespace ]] && error "Test logger exists: $namespace/${ENTRY[name]}"
+	[[ $namespace ]] && error "Test logger exists: $namespace/${ENTRY[name]}"
 
-    kubectl_entry run test-logger-${ENTRY[name]} --quiet --image bash "$@" \
-        --labels=$(concat , "${labels[@]}" "$SELECTOR=${ENTRY[name]}") \
-        --annotations=$(concat , "${annotations[@]}") \
-        -- bash -c 'tail -q -F test.log 2> /dev/null' >/dev/null
+	kubectl_entry run test-logger-${ENTRY[name]} --quiet --image bash "$@" \
+		--labels=$(concat , "${labels[@]}" "$SELECTOR=${ENTRY[name]}") \
+		--annotations=$(concat , "${annotations[@]}") \
+		-- bash -c 'tail -q -F test.log 2> /dev/null' >/dev/null
 }
 
 CMD[list]=_; __list() {
-    echo "${ENTRY[namespace]}/${ENTRY[name]}"
+	echo "${ENTRY[namespace]}/${ENTRY[name]}"
 }
 
 CMD[send]=_; __send() {
-    if [[ ! ${CMD[send_read]} ]]; then
-        CMD[send_read]=_
-        CMD[send_data]=$(cat)
-    fi
+	if [[ ! ${CMD[send_read]} ]]; then
+		CMD[send_read]=_
+		CMD[send_data]=$(cat)
+	fi
 
-    local pod
-    for pod in $(kubectl_entry get po -o name | xargs -r basename -a); do
-        <<< "${CMD[send_data]}" kubectl exec -i -n "${ENTRY[namespace]}" $pod -- bash -c 'cat >> test.log'
-    done
+	local pod
+	for pod in $(kubectl_entry get po -o name | xargs -r basename -a); do
+		<<< "${CMD[send_data]}" kubectl exec -i -n "${ENTRY[namespace]}" $pod -- bash -c 'cat >> test.log'
+	done
 }
 
 CMD[logs]=_; __logs() {
-    kubectl_entry logs --tail=-1
+	kubectl_entry logs --tail=-1
 }
 
 CMD[stop]=_; __stop() {
-    kubectl_entry delete po --grace-period 1 >/dev/null
+	kubectl_entry delete po --grace-period 1 >/dev/null
 }
 
 cmd=$1
@@ -120,41 +120,41 @@ shift && [[ $cmd ]] || usage
 [[ ${CMD[$cmd]} ]] || usage
 
 if [[ $cmd == start ]]; then
-    entries=("$1")
-    shift || usage
+	entries=("$1")
+	shift || usage
 else
-    data=$(kubectl get -A po -l "$SELECTOR" -o json)
+	data=$(kubectl get -A po -l "$SELECTOR" -o json)
 
-    entries=($(<<< "$data" jq -r '.items[].metadata | [.namespace, .labels["app.kubernetes.io/instance"]] | join("/")'))
+	entries=($(<<< "$data" jq -r '.items[].metadata | [.namespace, .labels["app.kubernetes.io/instance"]] | join("/")'))
 
-    if [[ $# -gt 0 ]]; then
-        declare -A selected=()
+	if [[ $# -gt 0 ]]; then
+		declare -A selected=()
 
-        while [[ $# -gt 0 ]]; do
-            selector=$1 && shift
+		while [[ $# -gt 0 ]]; do
+			selector=$1 && shift
 
-            found=
-            for entry in "${entries[@]}"; do
-                set_entry "$entry"
+			found=
+			for entry in "${entries[@]}"; do
+				set_entry "$entry"
 
-                [[ $selector == ${ENTRY[namespace]}/${ENTRY[name]} ]] || \
-                [[ $selector == ${ENTRY[namespace]}/ ]] || \
-                [[ $selector == ${ENTRY[name]} ]] || \
-                continue
+				[[ $selector == ${ENTRY[namespace]}/${ENTRY[name]} ]] || \
+				[[ $selector == ${ENTRY[namespace]}/ ]] || \
+				[[ $selector == ${ENTRY[name]} ]] || \
+				continue
 
-                selected[$entry]=_
+				selected[$entry]=_
 
-                found=_
-            done
-            [[ $found ]] || error "No test logger matching: $selector"
-        done
+				found=_
+			done
+			[[ $found ]] || error "No test logger matching: $selector"
+		done
 
-        _filter() { [[ ${selected[$1]} ]]; }; filter:: entries +@ _filter
-    fi
+		_filter() { [[ ${selected[$1]} ]]; }; filter:: entries +@ _filter
+	fi
 fi
 
 for entry in "${entries[@]}"; do
-    set_entry "$entry"
+	set_entry "$entry"
 
-    __$cmd "$@"
+	__$cmd "$@"
 done

@@ -7,7 +7,7 @@ set -e
 KSU_IMAGE=${KSU_IMAGE:-alpine}
 
 function usage {
-    cat <<END
+	cat <<END
 Spawn super user priviledged pod on a target node.
 
 Usage:
@@ -17,29 +17,28 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 while [[ $# -gt 0 ]]; do
 case $1 in
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
-
 
 node=$1 namespace=$2
 
@@ -51,12 +50,12 @@ pod_overrides=$(cat <<END
   "hostPID": true,
   "hostNetwork": true,
   "containers":[{
-    "name":"debug",
-    "image":"$KSU_IMAGE",
-    "command": ["nsenter", "--mount=/proc/1/ns/mnt", "--ipc=/proc/1/ns/ipc", "--uts=/proc/1/ns/uts", "--", "bash"],
-    "stdin": true,
-    "tty": true,
-    "securityContext": {"privileged": true}
+	"name":"debug",
+	"image":"$KSU_IMAGE",
+	"command": ["nsenter", "--mount=/proc/1/ns/mnt", "--ipc=/proc/1/ns/ipc", "--uts=/proc/1/ns/uts", "--", "bash"],
+	"stdin": true,
+	"tty": true,
+	"securityContext": {"privileged": true}
   }],
   "automountServiceAccountToken": false,
   "tolerations": [{"operator": "Exists"}]
@@ -65,5 +64,5 @@ END
 )
 
 kubectl -n "$namespace" run ksu -it --quiet --restart=Never --rm --image "$KSU_IMAGE" \
-  --labels "owner=$USER,kind=debug" \
-  --overrides "$pod_overrides"
+	--labels "owner=$USER,kind=debug" \
+	--overrides "$pod_overrides"

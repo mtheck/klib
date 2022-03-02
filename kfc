@@ -7,7 +7,7 @@ set -e
 DEFAULT_ADDRESS=127.0.0.1
 
 usage() {
-    cat <<END
+	cat <<END
 Execute a command with a kube port forward (use local port 0 for ephemeral).
 
 Following environment variables are available for the executed command:
@@ -30,7 +30,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -40,30 +40,30 @@ address=$DEFAULT_ADDRESS
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --namespace | -n)
-    namespace=$2
-    shift 2 || usage
-    ;;
+	namespace=$2
+	shift 2 || usage
+	;;
 --address | -a)
-    address=$2
-    shift 2 || usage
-    ;;
+	address=$2
+	shift 2 || usage
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 

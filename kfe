@@ -11,7 +11,7 @@ ES_SECRET_NAME=fleet-elasticsearch-es-elastic-user
 ES_SECRET_KEY=elastic
 
 usage() {
-    cat <<END
+	cat <<END
 Send HTTP query to Elasticsearch (with curl) through a kube port forward inside a Fleet cluster.
 
 Usage:
@@ -25,7 +25,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -35,26 +35,26 @@ path=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --port | -p)
-    port=$2
-    shift 2 || usage
-    ;;
+	port=$2
+	shift 2 || usage
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 

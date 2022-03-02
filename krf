@@ -5,7 +5,7 @@ set -e
 . functions
 
 usage() {
-    cat <<END
+	cat <<END
 Fuzzy find (fzf) the name of a Kubenetes resource(s) and execute a command with it.
 
 All instances of '{}' are replaced by the resource name, or if absent, appended at the end.
@@ -31,7 +31,7 @@ Options:
   --help, -h
     Display this help
 END
-    exit 2
+	exit 2
 }
 
 context=
@@ -45,46 +45,46 @@ single=
 while [[ $# -gt 0 ]]; do
 case $1 in
 --context | -c)
-    context=$2
-    shift 2 || usage
-    ;;
+	context=$2
+	shift 2 || usage
+	;;
 --namespace | -n)
-    namespace=$2
-    shift 2 || usage
-    ;;
+	namespace=$2
+	shift 2 || usage
+	;;
 --type | -t)
-    type=type
-    shift
-    ;;
+	type=type
+	shift
+	;;
 --table | -T)
-    table=table
-    shift
-    ;;
+	table=table
+	shift
+	;;
 --query | -q)
-    query=$2
-    shift 2 || usage
-    ;;
+	query=$2
+	shift 2 || usage
+	;;
 --exact | -e)
-    exact=exact
-    shift
-    ;;
+	exact=exact
+	shift
+	;;
 --single | -s)
-    single=single
-    shift
-    ;;
+	single=single
+	shift
+	;;
 --help | -h)
-    usage
-    ;;
+	usage
+	;;
 --)
-    shift
-    break
-    ;;
+	shift
+	break
+	;;
 -*)
-    error "Unknown option: $1"
-    ;;
+	error "Unknown option: $1"
+	;;
 *)
-    break
-    ;;
+	break
+	;;
 esac
 done
 
@@ -104,7 +104,7 @@ kube_args=(get "$resource")
 output=$(kubectl "${kube_args[@]}")
 
 if [[ ! $table && ! $type ]]; then
-    output=$(<<< "$output" xargs basename -a)
+	output=$(<<< "$output" xargs basename -a)
 fi
 
 fz_args=(--tac -0)
@@ -119,17 +119,17 @@ names=($(<<< "$output" fzf "${fz_args[@]}" | awk '{print $1}'))
 [[ $type ]] || names=($(basename -a "${names[@]}"))
 
 for name in "${names[@]}"; do
-    args=()
-    found=
+	args=()
+	found=
 
-    for arg in "$@"; do
-        if [[ $arg == *{}* ]]; then
-            arg=${arg//\{\}/$name}
-            found=found
-        fi
-        args+=("$arg")
-    done
-    [[ $found ]] || args+=($name)
+	for arg in "$@"; do
+		if [[ $arg == *{}* ]]; then
+			arg=${arg//\{\}/$name}
+			found=found
+		fi
+		args+=("$arg")
+	done
+	[[ $found ]] || args+=($name)
 
-    run "${args[@]}"
+	run "${args[@]}"
 done
